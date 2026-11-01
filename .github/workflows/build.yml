@@ -22,8 +22,6 @@ jobs:
 
       - name: Localizar projeto
         run: |
-          echo "=== ARQUIVOS DO REPOSITORIO ==="
-          find . -maxdepth 3 -not -path './.git/*' -not -path '*/node_modules/*' | sort
           PKG=$(find . -name package.json -not -path '*/node_modules/*' | head -n 1)
           if [ -z "$PKG" ]; then
             echo "ERRO: nenhum package.json encontrado no repositorio"
@@ -49,6 +47,26 @@ jobs:
         working-directory: ${{ env.PROJ }}
         run: npx cap sync android
 
+      - name: Permissoes de camera
+        working-directory: ${{ env.PROJ }}
+        run: |
+          M=android/app/src/main/AndroidManifest.xml
+          python3 - "$M" <<'EOF'
+          import sys
+          p = sys.argv[1]
+          s = open(p, encoding="utf-8").read()
+          add = ""
+          if "android.permission.CAMERA" not in s:
+              add += '    <uses-permission android:name="android.permission.CAMERA" />\n'
+              add += '    <uses-feature android:name="android.hardware.camera" android:required="false" />\n'
+          if add:
+              s = s.replace("</manifest>", add + "</manifest>")
+              open(p, "w", encoding="utf-8").write(s)
+          EOF
+          echo "=== MANIFEST ==="
+          cat "$M"
+          grep -q "android.permission.CAMERA" "$M" || { echo "ERRO: permissao nao foi inserida"; exit 1; }
+
       - name: Permissao do gradlew
         working-directory: ${{ env.PROJ }}
         run: chmod +x android/gradlew
@@ -56,6 +74,14 @@ jobs:
       - name: Compilar APK
         working-directory: ${{ env.PROJ }}/android
         run: ./gradlew assembleDebug
+
+      - name: Verificar permissoes dentro do APK
+        working-directory: ${{ env.PROJ }}
+        run: |
+          AAPT=$(find "$ANDROID_HOME/build-tools" -name aapt | sort | tail -n 1)
+          APK=$(ls android/app/build/outputs/apk/debug/*.apk | head -n 1)
+          echo "APK: $APK"
+          "$AAPT" dump permissions "$APK"
 
       - name: Enviar APK
         uses: actions/upload-artifact@v5
