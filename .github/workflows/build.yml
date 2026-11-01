@@ -20,10 +20,25 @@ jobs:
           distribution: temurin
           java-version: 21
 
+      - name: Localizar projeto
+        run: |
+          echo "=== ARQUIVOS DO REPOSITORIO ==="
+          find . -maxdepth 3 -not -path './.git/*' -not -path '*/node_modules/*' | sort
+          PKG=$(find . -name package.json -not -path '*/node_modules/*' | head -n 1)
+          if [ -z "$PKG" ]; then
+            echo "ERRO: nenhum package.json encontrado no repositorio"
+            exit 1
+          fi
+          DIR=$(dirname "$PKG")
+          echo "Projeto em: $DIR"
+          echo "PROJ=$DIR" >> $GITHUB_ENV
+
       - name: Instalar dependencias
+        working-directory: ${{ env.PROJ }}
         run: npm install
 
-      - name: Adicionar plataforma Android (se nao existir)
+      - name: Adicionar plataforma Android
+        working-directory: ${{ env.PROJ }}
         run: |
           if [ ! -d android ]; then
             npm install @capacitor/android
@@ -31,17 +46,19 @@ jobs:
           fi
 
       - name: Sincronizar Capacitor
+        working-directory: ${{ env.PROJ }}
         run: npx cap sync android
 
       - name: Permissao do gradlew
+        working-directory: ${{ env.PROJ }}
         run: chmod +x android/gradlew
 
       - name: Compilar APK
-        working-directory: android
+        working-directory: ${{ env.PROJ }}/android
         run: ./gradlew assembleDebug
 
       - name: Enviar APK
         uses: actions/upload-artifact@v5
         with:
           name: RaizerMR
-          path: android/app/build/outputs/apk/debug/*.apk
+          path: ${{ env.PROJ }}/android/app/build/outputs/apk/debug/*.apk
