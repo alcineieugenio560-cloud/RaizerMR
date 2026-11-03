@@ -59,7 +59,16 @@ jobs:
 
       - name: Compilar APK (debug)
         working-directory: ${{ steps.proj.outputs.dir }}
-        run: gradle assembleDebug --no-daemon --stacktrace
+        run: |
+          set -o pipefail
+          gradle assembleDebug --no-daemon --stacktrace 2>&1 | tee build.log
+
+      - name: Resumo dos erros (se falhar)
+        if: failure()
+        working-directory: ${{ steps.proj.outputs.dir }}
+        run: |
+          echo "=============== ERROS ==============="
+          grep -nE "^e: |What went wrong|Could not resolve|Execution failed|error:|Unresolved reference" -A4 build.log | head -150 || true
 
       - name: Publicar APK
         uses: actions/upload-artifact@v4
@@ -73,5 +82,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: relatorio-de-erros
-          path: ${{ steps.proj.outputs.dir }}/app/build/reports/
+          path: |
+            ${{ steps.proj.outputs.dir }}/build.log
+            ${{ steps.proj.outputs.dir }}/app/build/reports/
           if-no-files-found: ignore
