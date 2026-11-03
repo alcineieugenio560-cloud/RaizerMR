@@ -9,6 +9,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -21,6 +23,13 @@ jobs:
 
       - name: Configurar Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          packages: ''
+
+      - name: Instalar plataforma e build-tools
+        run: |
+          yes | sdkmanager --licenses > /dev/null || true
+          sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
 
       - name: Configurar Gradle
         uses: gradle/actions/setup-gradle@v4
@@ -28,7 +37,7 @@ jobs:
           gradle-version: '8.9'
 
       - name: Compilar APK (debug)
-        run: gradle --no-daemon assembleDebug
+        run: gradle assembleDebug --no-daemon --stacktrace
 
       - name: Publicar APK
         uses: actions/upload-artifact@v4
@@ -36,3 +45,13 @@ jobs:
           name: RaizerMR-debug-apk
           path: app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
+
+      - name: Publicar relatório de erros (se falhar)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: relatorio-de-erros
+          path: |
+            app/build/reports/
+            app/build/outputs/logs/
+          if-no-files-found: ignore
