@@ -1,0 +1,1 @@
+O modelo hand_landmarker.task é baixado pelo workflow (ou coloque aqui manualmente).
