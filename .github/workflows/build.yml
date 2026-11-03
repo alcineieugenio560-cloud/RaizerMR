@@ -2,89 +2,37 @@ name: Build APK
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [main, master]
+  pull_request:
   workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v5
-        with:
-          node-version: 22
-
-      - uses: actions/setup-java@v5
+      - name: Configurar Java 17
+        uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: 21
+          java-version: '17'
 
-      - name: Localizar projeto
-        run: |
-          PKG=$(find . -name package.json -not -path '*/node_modules/*' | head -n 1)
-          if [ -z "$PKG" ]; then
-            echo "ERRO: nenhum package.json encontrado no repositorio"
-            exit 1
-          fi
-          DIR=$(dirname "$PKG")
-          echo "Projeto em: $DIR"
-          echo "PROJ=$DIR" >> $GITHUB_ENV
+      - name: Configurar Android SDK
+        uses: android-actions/setup-android@v3
 
-      - name: Instalar dependencias
-        working-directory: ${{ env.PROJ }}
-        run: npm install
-
-      - name: Adicionar plataforma Android
-        working-directory: ${{ env.PROJ }}
-        run: |
-          if [ ! -d android ]; then
-            npm install @capacitor/android
-            npx cap add android
-          fi
-
-      - name: Sincronizar Capacitor
-        working-directory: ${{ env.PROJ }}
-        run: npx cap sync android
-
-      - name: Permissoes de camera
-        working-directory: ${{ env.PROJ }}
-        run: |
-          M=android/app/src/main/AndroidManifest.xml
-          python3 - "$M" <<'EOF'
-          import sys
-          p = sys.argv[1]
-          s = open(p, encoding="utf-8").read()
-          add = ""
-          if "android.permission.CAMERA" not in s:
-              add += '    <uses-permission android:name="android.permission.CAMERA" />\n'
-              add += '    <uses-feature android:name="android.hardware.camera" android:required="false" />\n'
-          if add:
-              s = s.replace("</manifest>", add + "</manifest>")
-              open(p, "w", encoding="utf-8").write(s)
-          EOF
-          echo "=== MANIFEST ==="
-          cat "$M"
-          grep -q "android.permission.CAMERA" "$M" || { echo "ERRO: permissao nao foi inserida"; exit 1; }
-
-      - name: Permissao do gradlew
-        working-directory: ${{ env.PROJ }}
-        run: chmod +x android/gradlew
-
-      - name: Compilar APK
-        working-directory: ${{ env.PROJ }}/android
-        run: ./gradlew assembleDebug
-
-      - name: Verificar permissoes dentro do APK
-        working-directory: ${{ env.PROJ }}
-        run: |
-          AAPT=$(find "$ANDROID_HOME/build-tools" -name aapt | sort | tail -n 1)
-          APK=$(ls android/app/build/outputs/apk/debug/*.apk | head -n 1)
-          echo "APK: $APK"
-          "$AAPT" dump permissions "$APK"
-
-      - name: Enviar APK
-        uses: actions/upload-artifact@v5
+      - name: Configurar Gradle
+        uses: gradle/actions/setup-gradle@v4
         with:
-          name: RaizerMR
-          path: ${{ env.PROJ }}/android/app/build/outputs/apk/debug/*.apk
+          gradle-version: '8.9'
+
+      - name: Compilar APK (debug)
+        run: gradle --no-daemon assembleDebug
+
+      - name: Publicar APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: RaizerMR-debug-apk
+          path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
