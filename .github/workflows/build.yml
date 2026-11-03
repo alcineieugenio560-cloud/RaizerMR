@@ -44,6 +44,14 @@ jobs:
           yes | sdkmanager --licenses > /dev/null || true
           sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
 
+      - name: Baixar modelo do MediaPipe (rastreamento de mãos)
+        working-directory: ${{ steps.proj.outputs.dir }}
+        run: |
+          mkdir -p app/src/main/assets
+          curl -L --fail --retry 3 -o app/src/main/assets/hand_landmarker.task \
+            https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task
+          ls -la app/src/main/assets
+
       - name: Configurar Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
