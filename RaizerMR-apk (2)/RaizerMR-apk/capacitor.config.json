@@ -1,0 +1,7 @@
+{
+  "appId": "com.raizermr.app",
+  "appName": "RaizerMR",
+  "webDir": "www",
+  "server": { "androidScheme": "https" },
+  "android": { "allowMixedContent": false }
+}
