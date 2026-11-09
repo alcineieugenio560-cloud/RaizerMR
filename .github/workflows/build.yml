@@ -1,88 +1,29 @@
-name: Build APK
-
+name: Gerar APK do RaizerMR
 on:
-  push:
-    branches: [main, master]
-  pull_request:
   workflow_dispatch:
-
+  push:
+    branches: [ main, master ]
 jobs:
-  build:
+  apk:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Localizar o projeto Gradle
-        id: proj
-        run: |
-          f=$(find . -maxdepth 3 -name settings.gradle.kts | head -n 1)
-          if [ -z "$f" ]; then
-            echo "settings.gradle.kts NAO encontrado. Arquivos do repositorio:"
-            find . -maxdepth 3 -not -path './.git/*' | head -60
-            exit 1
-          fi
-          dir=$(dirname "$f")
-          echo "Projeto encontrado em: $dir"
-          echo "dir=$dir" >> "$GITHUB_OUTPUT"
-
-      - name: Configurar Java 17
-        uses: actions/setup-java@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
-
-      - name: Configurar Android SDK
-        uses: android-actions/setup-android@v3
+          java-version: 17
+      - run: npm install
+      - run: npx cap add android
+      - run: bash scripts/patch-android.sh
+      - run: npx cap sync android
+      - run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug
+      - uses: actions/upload-artifact@v4
         with:
-          packages: ''
-
-      - name: Instalar plataforma e build-tools
-        run: |
-          yes | sdkmanager --licenses > /dev/null || true
-          sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
-
-      - name: Baixar modelo do MediaPipe (rastreamento de mãos)
-        working-directory: ${{ steps.proj.outputs.dir }}
-        run: |
-          mkdir -p app/src/main/assets
-          curl -L --fail --retry 3 -o app/src/main/assets/hand_landmarker.task \
-            https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task
-          ls -la app/src/main/assets
-
-      - name: Configurar Gradle
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '8.9'
-
-      - name: Compilar APK (debug)
-        working-directory: ${{ steps.proj.outputs.dir }}
-        run: |
-          set -o pipefail
-          gradle assembleDebug --no-daemon --stacktrace 2>&1 | tee build.log
-
-      - name: Resumo dos erros (se falhar)
-        if: failure()
-        working-directory: ${{ steps.proj.outputs.dir }}
-        run: |
-          echo "=============== ERROS ==============="
-          grep -nE "^e: |What went wrong|Could not resolve|Execution failed|error:|Unresolved reference" -A4 build.log | head -150 || true
-
-      - name: Publicar APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: RaizerMR-debug-apk
-          path: ${{ steps.proj.outputs.dir }}/app/build/outputs/apk/debug/*.apk
-          if-no-files-found: error
-
-      - name: Publicar relatório de erros (se falhar)
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: relatorio-de-erros
-          path: |
-            ${{ steps.proj.outputs.dir }}/build.log
-            ${{ steps.proj.outputs.dir }}/app/build/reports/
-          if-no-files-found: ignore
+          name: RaizerMR-APK
+          path: android/app/build/outputs/apk/debug/app-debug.apk
