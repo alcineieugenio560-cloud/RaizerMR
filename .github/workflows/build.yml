@@ -8,6 +8,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Achar a pasta do projeto (funciona na raiz ou dentro de uma subpasta)
+        id: p
+        run: |
+          F=$(find . -maxdepth 3 -name package.json -not -path '*/node_modules/*' | awk '{print length, $0}' | sort -n | head -1 | cut -d' ' -f2-)
+          if [ -z "$F" ]; then echo "package.json nao encontrado. Envie o conteudo do zip para o repositorio."; exit 1; fi
+          D=$(dirname "$F")
+          echo "Projeto em: $D"
+          echo "dir=$D" >> "$GITHUB_OUTPUT"
       - uses: actions/setup-node@v4
         with:
           node-version: 20
@@ -16,14 +24,18 @@ jobs:
           distribution: temurin
           java-version: 17
       - run: npm install
+        working-directory: ${{ steps.p.outputs.dir }}
       - run: npx cap add android
+        working-directory: ${{ steps.p.outputs.dir }}
       - run: bash scripts/patch-android.sh
+        working-directory: ${{ steps.p.outputs.dir }}
       - run: npx cap sync android
+        working-directory: ${{ steps.p.outputs.dir }}
       - run: |
-          cd android
           chmod +x gradlew
           ./gradlew assembleDebug
+        working-directory: ${{ steps.p.outputs.dir }}/android
       - uses: actions/upload-artifact@v4
         with:
           name: RaizerMR-APK
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          path: ${{ steps.p.outputs.dir }}/android/app/build/outputs/apk/debug/app-debug.apk
